@@ -34,15 +34,22 @@
     if (days >= 365) return (days / 365).toFixed(1) + 'y';
     return Math.max(0, Math.round(days)) + 'd';
   }
-  // The model, recomputed in the page, so the code and the board are visibly the same arithmetic.
-  function impliedOf(r) {
-    var growth = Math.min(M.momentum_cap, Math.max(M.momentum_floor, r.change_7d === null || r.change_7d === undefined ? 0 : r.change_7d));
+  // The model, recomputed in the page from the same raw snapshot figures the board used, so the
+  // code and the board are visibly and exactly the same arithmetic. It deliberately does not reuse
+  // the row's stored multipliers: those are rounded for display, and multiplying the rounded values
+  // drifts from the implied value board.json carries.
+  function factorsOf(r) {
+    var growth = clampPct(r);
     var momentum = 1 + (growth / 100) * M.momentum_weight;
     var age = r.age_days === null || r.age_days === undefined ? M.unknown_age_days : r.age_days;
     var dry = M.dryspell_floor + (Math.min(Math.max(age, 0), M.dryspell_days) / M.dryspell_days) * M.dryspell_range;
     var chains = r.chains && r.chains.length > 0 ? r.chains.length : 1;
     var reach = M.reach_floor + M.reach_step * Math.min(chains, M.reach_max_chains);
-    return Math.max(1, Math.round(r.tvl_usd * r.base * r.sector_multiple * momentum * dry * reach));
+    return { growth: growth, momentum: momentum, dry: dry, reach: reach, chains: chains };
+  }
+  function impliedOf(r) {
+    var f = factorsOf(r);
+    return Math.max(1, Math.round(r.tvl_usd * r.base * r.sector_multiple * f.momentum * f.dry * f.reach));
   }
   function clampPct(r) {
     var g = r.change_7d === null || r.change_7d === undefined ? 0 : r.change_7d;
@@ -369,14 +376,14 @@
 
     var recheck = impliedOf(row);
     var agrees = recheck === row.implied_value_usd;
-    var growth = clampPct(row);
+    var f = factorsOf(row);
     var bridge = el('div', { class: 'bridge' },
       bridgeRow('TVL', fmtUsd(row.tvl_usd)),
       bridgeRow('× base', String(row.base)),
       bridgeRow('× sector (' + row.sector + ')', '×' + row.sector_multiple.toFixed(2)),
-      bridgeRow('× momentum (' + fmtPct(growth) + ')', '×' + row.momentum_multiplier.toFixed(3)),
-      bridgeRow('× dry-spell (' + fmtAge(row.age_days) + ')', '×' + row.dryspell_multiplier.toFixed(3)),
-      bridgeRow('× reach (' + ((row.chains || []).length || 1) + ' chain' + (((row.chains || []).length || 1) === 1 ? '' : 's') + ')', '×' + row.reach_multiplier.toFixed(3)),
+      bridgeRow('× momentum (' + fmtPct(f.growth) + ')', '×' + f.momentum.toFixed(4)),
+      bridgeRow('× dry-spell (' + fmtAge(row.age_days) + ')', '×' + f.dry.toFixed(4)),
+      bridgeRow('× reach (' + f.chains + ' chain' + (f.chains === 1 ? '' : 's') + ')', '×' + f.reach.toFixed(4)),
       bridgeRow('Implied value', fmtUsd(row.implied_value_usd), 'total'),
       el('div', { class: 'why', text: agrees
         ? 'The page recomputes this row as ' + fmtUsd(recheck) + ', the same number board.json carries.'
