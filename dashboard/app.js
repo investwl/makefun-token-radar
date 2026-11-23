@@ -405,7 +405,31 @@
     function fact(k, v) { return el('div', { class: 'fact' }, el('span', { text: k }), el('b', { text: v })); }
     dialog.appendChild(el('section', { class: 'detail-section' }, el('h3', { text: 'On the record' }), facts));
 
-    var steps = el('ol', { class: 'steps' }, (row.farm_steps || []).map(function (s) {
+    // Pull the plan's own headline numbers out of the steps the model wrote, so a reader sees what
+    // it costs and how long it takes before reading the prose: the capital the funding step names,
+    // the weekly gas the maintenance step names, and the hold window the hold step names.
+    var planRows = row.farm_steps || [];
+    var headline = { capital: 'n/a', weekly: 'n/a', hold: 'n/a' };
+    planRows.forEach(function (s) {
+      if (/^Fund that wallet/.test(s)) {
+        var m = s.match(/\$(\d[\d,]*)\s*of capital/);
+        if (m) headline.capital = '$' + m[1];
+      }
+      if (/^Make one qualifying action each week/.test(s)) {
+        var g = s.match(/about (.+?) a week/);
+        if (g) headline.weekly = g[1].replace(/\.$/, '');
+      }
+      if (/^Hold the position for at least/.test(s)) {
+        var h = s.match(/at least (\d+) days/);
+        if (h) headline.hold = h[1] + ' days';
+      }
+    });
+    var planSummary = el('div', { class: 'plan-summary' },
+      el('span', { class: 'tag cost', text: 'Capital ' + headline.capital }),
+      el('span', { class: 'tag time', text: 'About ' + headline.weekly + ' a week in gas' }),
+      el('span', { class: 'tag time', text: 'Hold ' + headline.hold })
+    );
+    var steps = el('ol', { class: 'steps' }, planRows.map(function (s) {
       var at = s.indexOf(' Cost: ');
       var act = at >= 0 ? s.slice(0, at) : s;
       var tail = at >= 0 ? s.slice(at + 7) : '';
@@ -422,6 +446,7 @@
     dialog.appendChild(el('section', { class: 'detail-section' },
       el('h3', { text: 'Farm plan' }),
       el('p', { class: 'sub', text: 'Derived from this protocol\'s category, chains, TVL and age: capital scales with the TVL, gas with the chain, and the hold window with how young it is. Costs are estimates.' }),
+      planSummary,
       steps
     ));
 

@@ -181,6 +181,11 @@ tr[data-selected="true"] .rank, tbody tr:hover .rank { color: var(--accent); }
 .steps .tag { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
 .steps .tag.cost { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 35%, var(--line)); }
 .steps .tag.time { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 35%, var(--line)); }
+/* The plan's headline numbers, up top: what it costs to enter, what it costs to keep, how long to hold. */
+.plan-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s3); }
+.plan-summary .tag { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); }
+.plan-summary .tag.cost { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 35%, var(--line)); }
+.plan-summary .tag.time { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 35%, var(--line)); }
 .note { margin-top: var(--s3); color: var(--dim); font-size: 12.5px; }
 .facts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-top: var(--s3); }
 .fact { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-s); padding: var(--s2) var(--s3); }
