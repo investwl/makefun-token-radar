@@ -8,6 +8,11 @@
   if (!DATA) return;
   var M = DATA.model;
   var app = document.getElementById('board');
+  // The TVL floors the page offers, shared by the control and the hash reader so a link can only
+  // carry a floor the page itself names.
+  var TVL_FLOORS = [0, 5e7, 1e8, 2.5e8, 1e9];
+  // Which way each sort starts: numbers and name run strongest-first or A-first per column.
+  var SORT_DEFAULT_DIR = { implied: -1, rank: -1, tvl: -1, growth: -1, age: -1, sector: -1, name: 1 };
   var state = { q: '', category: 'all', chain: 'all', minTvl: 0, tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
 
   function fmtUsd(n) {
@@ -67,6 +72,8 @@
 
   // URL hash <-> state, so a filtered or detail view can be linked and screenshotted. The state is
   // reset to its defaults first, so the hash is the whole truth and every link is reproducible.
+  // Every value is validated: a hash naming an unknown floor, sort or tab falls back to a default
+  // rather than putting the page in a state no control can show.
   function readHash() {
     state.q = ''; state.category = 'all'; state.chain = 'all'; state.minTvl = 0;
     state.tab = 'pre-token'; state.sort = 'implied'; state.dir = -1; state.selected = null;
@@ -76,10 +83,13 @@
     if (p.get('q')) state.q = p.get('q');
     if (p.get('category')) state.category = p.get('category');
     if (p.get('chain')) state.chain = p.get('chain');
-    if (p.get('min')) state.minTvl = Number(p.get('min')) || 0;
-    if (p.get('tab')) state.tab = p.get('tab');
-    if (p.get('sort')) state.sort = p.get('sort');
-    if (p.get('dir')) state.dir = Number(p.get('dir')) || -1;
+    if (p.get('min')) {
+      var min = Number(p.get('min'));
+      state.minTvl = TVL_FLOORS.indexOf(min) >= 0 ? min : 0;
+    }
+    if (p.get('tab') === 'live') state.tab = 'live';
+    if (p.get('sort') && SORT_DEFAULT_DIR[p.get('sort')]) state.sort = p.get('sort');
+    state.dir = Number(p.get('dir')) === 1 ? 1 : -1;
     if (p.get('p')) state.selected = p.get('p');
   }
   function writeHash() {
@@ -111,7 +121,8 @@
     var key = state.sort;
     return list.slice().sort(function (a, b) {
       var av, bv;
-      if (key === 'name') { av = a.name.toLowerCase(); bv = b.name.toLowerCase(); }
+      if (key === 'rank') { av = a.rank; bv = b.rank; }
+      else if (key === 'name') { av = a.name.toLowerCase(); bv = b.name.toLowerCase(); }
       else if (key === 'tvl') { av = a.tvl_usd; bv = b.tvl_usd; }
       else if (key === 'growth') { av = a.change_7d === null ? -Infinity : a.change_7d; bv = b.change_7d === null ? -Infinity : b.change_7d; }
       else if (key === 'age') { av = a.age_days === null ? Infinity : a.age_days; bv = b.age_days === null ? Infinity : b.age_days; }
@@ -160,11 +171,13 @@
   function controls() {
     var categories = Array.from(new Set(DATA.rows.map(function (r) { return r.category || 'Other'; }))).sort();
     var chains = Array.from(new Set(DATA.rows.reduce(function (a, r) { return a.concat(r.chains || []); }, []))).sort();
-    var floors = [[0, 'Any TVL'], [5e7, '$50M +'], [1e8, '$100M +'], [2.5e8, '$250M +'], [1e9, '$1B +']];
-    var search = el('input', { type: 'search', id: 'q', placeholder: 'Search name, sector, category or chain', value: state.q, 'aria-label': 'Search the board' });
-    search.addEventListener('input', function () { state.q = search.value; writeHash(); render(); });
+    var floors = TVL_FLOORS.map(function (f) {
+      return [f, f === 0 ? 'Any TVL' : '$' + (f >= 1e9 ? (f / 1e9) + 'B' : f >= 1e6 ? (f / 1e6) + 'M' : f) + ' +'];
+    });
+    var search = el('input', { type: 'search', id: 'q', 'data-fkey': 'q', placeholder: 'Search name, sector, category or chain', value: state.q, 'aria-label': 'Search the board' });
+    search.addEventListener('input', function () { state.q = search.value; writeHash(); render('q'); });
     function select(id, label, options, value, onChange) {
-      var s = el('select', { id: id, 'aria-label': label }, options.map(function (o) { return el('option', { value: o[0], text: o[1], selected: String(o[0]) === String(value) ? 'selected' : null }); }));
+      var s = el('select', { id: id, 'data-fkey': id, 'aria-label': label }, options.map(function (o) { return el('option', { value: o[0], text: o[1], selected: String(o[0]) === String(value) ? 'selected' : null }); }));
       s.addEventListener('change', function () { onChange(s.value); });
       return s;
     }
@@ -188,7 +201,13 @@
   function sortHeader(key, label) {
     var active = state.sort === key;
     return el('th', { scope: 'col', 'aria-sort': active ? (state.dir < 0 ? 'descending' : 'ascending') : null },
-      el('button', { type: 'button', onclick: function () { if (state.sort === key) state.dir = -state.dir; else { state.sort = key; state.dir = -1; } writeHash(); render(); } },
+      el('button', { type: 'button', onclick: function () {
+        // Clicking a new column starts it at that column's own default direction; clicking the
+        // active one reverses it.
+        if (state.sort === key) state.dir = -state.dir;
+        else { state.sort = key; state.dir = SORT_DEFAULT_DIR[key] ?? -1; }
+        writeHash(); render();
+      } },
         label, active ? el('span', { 'aria-hidden': 'true', text: state.dir < 0 ? ' ▼' : ' ▲' }) : null
       )
     );
@@ -236,7 +255,7 @@
       el('div', { class: 'caption', text: 'Pre-token protocols, strongest implied value first. The watchlist floor is $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL; ' + DATA.early_size + ' rows sit below it as early finds. Select a row for its value bridge and farm plan.' }),
       el('div', { class: 'table-wrap' }, el('table', null,
         el('thead', null, el('tr', null,
-          sortHeader('implied', 'Rank'), sortHeader('name', 'Protocol'), sortHeader('tvl', 'TVL'),
+          sortHeader('rank', 'Rank'), sortHeader('name', 'Protocol'), sortHeader('tvl', 'TVL'),
           sortHeader('growth', '7d'), sortHeader('age', 'No-token age'), sortHeader('implied', 'Implied value'),
           sortHeader('sector', 'Sector ×'), el('th', { scope: 'col', text: 'Token' })
         )), tbody))
@@ -382,7 +401,14 @@
     );
   }
 
-  function render() {
+  function render(focusKey) {
+    // The controls are rebuilt each render, so an active element would lose focus. Carry the
+    // focused control and its caret across the rebuild (used by the search box, which re-renders
+    // on every keystroke).
+    var active = document.activeElement;
+    var fkey = focusKey || (active && active.getAttribute && active.getAttribute('data-fkey'));
+    var caret = null;
+    if (active && typeof active.selectionStart === 'number') caret = active.selectionStart;
     app.textContent = '';
     var shell = el('div', { class: 'shell' });
     shell.appendChild(masthead());
@@ -396,6 +422,15 @@
     if (!dialog.isConnected) app.appendChild(dialog);
     if (state.selected) openDetail(state.selected);
     else if (dialog.open) dialog.close();
+    if (fkey) {
+      var next = app.querySelector('[data-fkey="' + fkey + '"]');
+      if (next) {
+        next.focus();
+        if (caret !== null && typeof next.setSelectionRange === 'function') {
+          try { next.setSelectionRange(caret, caret); } catch (e) { /* not a text control */ }
+        }
+      }
+    }
   }
 
   readHash();
