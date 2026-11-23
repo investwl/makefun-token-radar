@@ -285,8 +285,15 @@
       );
       tbody.appendChild(tr);
     });
+    // The caption describes the rows actually shown, not the whole board: under a filter it names
+    // how many rows and how much capital survive it, so the numbers on the page stay in step with
+    // the table above them.
+    var filtering = state.q.trim() !== '' || state.category !== 'all' || state.chain !== 'all' || state.minTvl !== 0;
+    var scope = filtering
+      ? 'Showing ' + list.length + ' of ' + DATA.board_size + ' rows, ' + fmtUsd(list.reduce(function (s, r) { return s + r.tvl_usd; }, 0)) + ' of TVL, that match the filters.'
+      : 'The watchlist floor is $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL; ' + DATA.early_size + ' rows sit below it as early finds.';
     return el('div', { class: 'panel' },
-      el('div', { class: 'caption', text: 'Pre-token protocols, strongest implied value first. The watchlist floor is $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL; ' + DATA.early_size + ' rows sit below it as early finds. Select a row for its value bridge and farm plan.' }),
+      el('div', { class: 'caption', text: 'Pre-token protocols, strongest implied value first. ' + scope + ' Select a row for its value bridge and farm plan.' }),
       el('div', { class: 'table-wrap' }, el('table', null,
         el('thead', null, el('tr', null,
           sortHeader('rank', 'Rank'), sortHeader('name', 'Protocol'), sortHeader('tvl', 'TVL'),
