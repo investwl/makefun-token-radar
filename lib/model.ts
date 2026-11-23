@@ -90,6 +90,10 @@ const SECTOR: Array<[RegExp, number]> = [
   [/\bdex|amm|swap|liquidity\b/i, 1.28],
   [/\blending|cdp|collateral|money market\b/i, 1.24],
   [/\byield|aggregator|vault|auto.?comp/i, 1.18],
+  // Capital curators and onchain allocators run the same business as a yield aggregator — they
+  // deploy other people's capital into strategies for a fee — so they score with the yield bucket
+  // rather than as an undifferentiated category.
+  [/\bcurator|allocator|basis trading|leveraged farm|\bfarm\b/i, 1.18],
   [/\brwa|real.world asset|tokeniz/i, 1.16],
   [/\bprediction|betting|oracle\b/i, 1.12],
   [/\bstablecoin|stable\b/i, 0.94],
@@ -314,6 +318,7 @@ export function sectorLabel(category: string | null): string {
   if (/\bdex|amm|swap|liquidity\b/i.test(c)) return 'DEX';
   if (/\blending|cdp|collateral|money market\b/i.test(c)) return 'Lending';
   if (/\byield|aggregator|vault|auto.?comp/i.test(c)) return 'Yield';
+  if (/\bcurator|allocator|basis trading|leveraged farm|\bfarm\b/i.test(c)) return 'Capital curation';
   if (/\brwa|real.world asset|tokeniz/i.test(c)) return 'RWA';
   if (/\bprediction|betting|oracle\b/i.test(c)) return 'Prediction';
   if (/\bstablecoin|stable\b/i.test(c)) return 'Stablecoin';
@@ -377,6 +382,8 @@ function mainAction(p: SnapshotProtocol, capital: number, chain: string): string
     return `Add $${capital} of liquidity to ${name}'s deepest pool on ${chain} (a stable-to-stable pair if one exists, else the top volume pair) and keep the LP tokens.`;
   if (/\byield|aggregator|vault|auto.?comp/i.test(c))
     return `Deposit $${capital} into ${name}'s largest vault on ${chain} and keep the receipt tokens; do not auto-restake into a strategy you have not read.`;
+  if (/\bcurator|allocator|basis trading|leveraged farm|\bfarm\b/i.test(c))
+    return `Deposit $${capital} through ${name}'s own app on ${chain} into its largest strategy or vault, keep the receipt tokens, and read which positions it puts the capital in before you add more.`;
   if (/\bliquid.*(staking|restaking)|restak/i.test(c))
     return `Stake $${capital} of the chain's native asset through ${name} on ${chain}, keep the liquid receipt, and leave it unstacked for now.`;
   if (/\bbridge|canonical|wrap|message|interop/i.test(c))
