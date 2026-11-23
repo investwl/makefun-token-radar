@@ -255,7 +255,10 @@
   function boardTable() {
     var list = sortedRows(rows());
     if (list.length === 0) return emptyState();
-    var max = list[0].implied_value_usd || 1;
+    // Bars scale against the strongest implied value in the filtered set, not against whichever row
+    // the current sort happens to put first: under a name or age sort the top row is rarely the
+    // largest, and every other bar would collapse to the floor.
+    var max = list.reduce(function (m, r) { return r.implied_value_usd > m ? r.implied_value_usd : m; }, 0) || 1;
     var tbody = el('tbody');
     list.forEach(function (r) {
       var g = r.change_7d === null ? null : r.change_7d;
@@ -348,10 +351,16 @@
   }
 
   function sectorLegend() {
+    // One chip per distinct sector bucket the board actually carries, keyed on the label and its
+    // multiple together: a label that two categories reach at different multiples would otherwise
+    // show only whichever category the first row happened to carry.
     var seen = new Map();
-    DATA.rows.forEach(function (r) { if (!seen.has(r.sector)) seen.set(r.sector, r.sector_multiple); });
-    var chips = Array.from(seen.entries()).sort(function (a, b) { return b[1] - a[1]; })
-      .map(function (e) { return el('span', { class: 'sector', text: e[0] + ' ×' + e[1].toFixed(2) }); });
+    DATA.rows.forEach(function (r) {
+      var key = r.sector + '\u0000' + r.sector_multiple;
+      if (!seen.has(key)) seen.set(key, { sector: r.sector, mult: r.sector_multiple });
+    });
+    var chips = Array.from(seen.values()).sort(function (a, b) { return b.mult - a.mult || (a.sector < b.sector ? -1 : 1); })
+      .map(function (e) { return el('span', { class: 'sector', text: e.sector + ' ×' + e.mult.toFixed(2) }); });
     return el('div', { class: 'legend' }, chips);
   }
 
