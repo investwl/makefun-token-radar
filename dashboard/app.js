@@ -175,7 +175,7 @@
         el('p', { class: 'tag', text: 'Every protocol here records no token yet. The board ranks them by an implied value built from their own figures — the capital they hold, their seven-day growth, how long they have run without a token, the sector they sit in and how many chains they reach. It is a model, not a price, and it does not predict whether or when a token comes.' })
       ),
       el('div', { class: 'stats' },
-        stat(DATA.watchlist_size + ' / ' + DATA.watchlist_size, 'watchlist covered', 'good'),
+        stat(fmtUsd(DATA.board_tvl_usd) + ' TVL', 'tracked across the board', 'good'),
         stat(String(DATA.board_size), 'pre-token rows scored'),
         stat(String(DATA.early_size), 'early finds below the floor'),
         stat(String(DATA.live_size), 'live tokens set aside', 'market')

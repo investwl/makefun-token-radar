@@ -191,6 +191,8 @@ export interface RadarData {
   board_size: number;
   early_size: number;
   live_size: number;
+  /** The capital the ranked board tracks: the summed TVL of every pre-token row. */
+  board_tvl_usd: number;
   rows: RadarRow[];
   live: LiveRow[];
 }
@@ -537,6 +539,7 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
     board_size: board.length,
     early_size: early,
     live_size: live.length,
+    board_tvl_usd: board.reduce((sum, r) => sum + r.tvl_usd, 0),
     rows: board.map(radarRow),
     live,
   };
