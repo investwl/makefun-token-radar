@@ -12,7 +12,9 @@
   // carry a floor the page itself names.
   var TVL_FLOORS = [0, 5e7, 1e8, 2.5e8, 1e9];
   // Which way each sort starts: numbers and name run strongest-first or A-first per column.
-  var SORT_DEFAULT_DIR = { implied: -1, rank: -1, tvl: -1, growth: -1, age: -1, sector: -1, name: 1 };
+  var SORT_DEFAULT_DIR = { implied: -1, rank: -1, tvl: -1, growth: -1, age: -1, sector: -1, name: 1, mcap: -1 };
+  // The sort each view opens on: the board by implied value, the live set by market cap.
+  var TAB_SORT = { 'pre-token': 'implied', live: 'mcap' };
   var state = { q: '', category: 'all', chain: 'all', minTvl: 0, tab: 'pre-token', sort: 'implied', dir: -1, selected: null };
 
   function fmtUsd(n) {
@@ -185,7 +187,12 @@
     var chainSel = select('chain', 'Filter by chain', [['all', 'All chains']].concat(chains.map(function (c) { return [c, c]; })), state.chain, function (v) { state.chain = v; writeHash(); render(); });
     var tvlSel = select('min', 'Filter by minimum TVL', floors.map(function (f) { return [String(f[0]), f[1]]; }), String(state.minTvl), function (v) { state.minTvl = Number(v) || 0; writeHash(); render(); });
     function tab(name, label) {
-      return el('button', { type: 'button', 'aria-pressed': state.tab === name ? 'true' : 'false', text: label, onclick: function () { state.tab = name; writeHash(); render(); } });
+      return el('button', { type: 'button', 'aria-pressed': state.tab === name ? 'true' : 'false', text: label, onclick: function () {
+        // Each view keeps its own sort: moving between them opens on that view's own column rather
+        // than carrying a sort the other table does not have.
+        if (state.tab !== name) { state.tab = name; state.sort = TAB_SORT[name]; state.dir = SORT_DEFAULT_DIR[state.sort]; }
+        writeHash(); render();
+      } });
     }
     var shown = state.tab === 'pre-token' ? rows().length : DATA.live.length;
     return el('div', { class: 'controls' },
@@ -262,24 +269,45 @@
     );
   }
 
+  // The live-token rows, ordered by the page's sort. A row with no market cap sorts as if it had
+  // none, so it never outranks one the market actually prices.
+  function sortedLive() {
+    var key = state.sort, dir = state.dir;
+    var allowed = { name: 1, tvl: 1, growth: 1, mcap: 1 };
+    if (!allowed[key]) { key = 'mcap'; dir = -1; }
+    return DATA.live.slice().sort(function (a, b) {
+      var av, bv;
+      if (key === 'name') { av = a.name.toLowerCase(); bv = b.name.toLowerCase(); }
+      else if (key === 'tvl') { av = a.tvl_usd; bv = b.tvl_usd; }
+      else if (key === 'growth') { av = a.change_7d === null ? -Infinity : a.change_7d; bv = b.change_7d === null ? -Infinity : b.change_7d; }
+      else { av = a.mcap_usd === null ? -Infinity : a.mcap_usd; bv = b.mcap_usd === null ? -Infinity : b.mcap_usd; }
+      if (av < bv) return -dir;
+      if (av > bv) return dir;
+      return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+    });
+  }
+
   function liveTable() {
+    var list = sortedLive();
+    if (list.length === 0) return emptyState();
     var tbody = el('tbody');
-    DATA.live.forEach(function (r) {
+    list.forEach(function (r) {
+      var g = r.change_7d === null ? null : r.change_7d;
       tbody.appendChild(el('tr', null,
         el('td', null, el('span', { class: 'status live', text: 'already trades' })),
         el('td', null, el('div', { class: 'proto' }, el('b', { text: r.name }),
           el('div', { class: 'meta' }, el('span', { class: 'chain', text: r.category || 'Uncategorised' })), chainChips(r.chains))),
         el('td', { class: 'num', text: fmtUsd(r.tvl_usd) }),
-        el('td', { class: 'num ' + (r.change_7d !== null && r.change_7d >= 0 ? 'pos' : 'neg'), text: fmtPct(r.change_7d) }),
+        el('td', { class: 'num ' + (g === null ? 'na' : g >= 0 ? 'pos' : 'neg'), text: g === null ? 'n/a' : fmtPct(g) }),
         el('td', { class: 'num', text: fmtUsd(r.mcap_usd) })
       ));
     });
     return el('div', { class: 'panel' },
-      el('div', { class: 'caption', text: 'These protocols already have a token that trades, so their market cap is a fact, not a model. They are kept out of the pre-token ranking so the two are never mixed.' }),
+      el('div', { class: 'caption', text: 'These protocols already have a token that trades, so their market cap is a fact, not a model. They are kept out of the pre-token ranking so the two are never mixed. The ' + DATA.live_size + ' shown are the largest by market cap.' }),
       el('div', { class: 'table-wrap' }, el('table', null,
         el('thead', null, el('tr', null,
-          el('th', { scope: 'col', text: 'Status' }), el('th', { scope: 'col', text: 'Protocol' }), el('th', { scope: 'col', text: 'TVL' }),
-          el('th', { scope: 'col', text: '7d' }), el('th', { scope: 'col', text: 'Market cap' }))), tbody))
+          el('th', { scope: 'col', text: 'Status' }), sortHeader('name', 'Protocol'), sortHeader('tvl', 'TVL'),
+          sortHeader('growth', '7d'), sortHeader('mcap', 'Market cap'))), tbody))
     );
   }
 
