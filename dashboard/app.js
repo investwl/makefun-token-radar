@@ -115,16 +115,23 @@
     window.history.replaceState(null, '', next ? '#' + next : window.location.pathname + window.location.search);
   }
 
+  // Whether one row clears the search, category, chain and TVL-floor filters. Shared by both views
+  // so the controls mean the same thing on the pre-token board and the live-token set.
+  function passesFilters(r, q) {
+    if (state.category !== 'all' && (r.category || 'Other') !== state.category) return false;
+    if (state.chain !== 'all' && (r.chains || []).indexOf(state.chain) < 0) return false;
+    if (state.minTvl && r.tvl_usd < state.minTvl) return false;
+    if (!q) return true;
+    var hay = [r.name, r.slug, r.category, r.sector, (r.chains || []).join(' ')].join(' ').toLowerCase();
+    return hay.indexOf(q) >= 0;
+  }
   function rows() {
     var q = state.q.trim().toLowerCase();
-    return DATA.rows.filter(function (r) {
-      if (state.category !== 'all' && (r.category || 'Other') !== state.category) return false;
-      if (state.chain !== 'all' && (r.chains || []).indexOf(state.chain) < 0) return false;
-      if (state.minTvl && r.tvl_usd < state.minTvl) return false;
-      if (!q) return true;
-      var hay = [r.name, r.slug, r.category, r.sector, (r.chains || []).join(' ')].join(' ').toLowerCase();
-      return hay.indexOf(q) >= 0;
-    });
+    return DATA.rows.filter(function (r) { return passesFilters(r, q); });
+  }
+  function liveRows() {
+    var q = state.q.trim().toLowerCase();
+    return DATA.live.filter(function (r) { return passesFilters(r, q); });
   }
   function sortedRows(list) {
     var key = state.sort;
@@ -178,8 +185,11 @@
   }
 
   function controls() {
-    var categories = Array.from(new Set(DATA.rows.map(function (r) { return r.category || 'Other'; }))).sort();
-    var chains = Array.from(new Set(DATA.rows.reduce(function (a, r) { return a.concat(r.chains || []); }, []))).sort();
+    // The category and chain options cover both views, so a filter can name a category or a chain
+    // that only the live-token set carries.
+    var every = DATA.rows.concat(DATA.live);
+    var categories = Array.from(new Set(every.map(function (r) { return r.category || 'Other'; }))).sort();
+    var chains = Array.from(new Set(every.reduce(function (a, r) { return a.concat(r.chains || []); }, []))).sort();
     var floors = TVL_FLOORS.map(function (f) {
       return [f, f === 0 ? 'Any TVL' : '$' + (f >= 1e9 ? (f / 1e9) + 'B' : f >= 1e6 ? (f / 1e6) + 'M' : f) + ' +'];
     });
@@ -201,14 +211,21 @@
         writeHash(); render();
       } });
     }
-    var shown = state.tab === 'pre-token' ? rows().length : DATA.live.length;
+    var filtering = state.q.trim() !== '' || state.category !== 'all' || state.chain !== 'all' || state.minTvl !== 0;
+    var shown = state.tab === 'pre-token' ? rows().length : liveRows().length;
+    var countText;
+    if (state.tab === 'pre-token') {
+      countText = filtering ? shown + ' of ' + DATA.board_size + ' rows' : DATA.board_size + ' rows';
+    } else {
+      countText = filtering ? shown + ' of ' + DATA.live_size + ' live-token protocols' : DATA.live_size + ' live-token protocols';
+    }
     return el('div', { class: 'controls' },
       el('div', { class: 'field' }, el('label', { for: 'q', text: 'Search' }), search),
       el('div', { class: 'field' }, el('label', { for: 'category', text: 'Category' }), catSel),
       el('div', { class: 'field' }, el('label', { for: 'chain', text: 'Chain' }), chainSel),
       el('div', { class: 'field' }, el('label', { for: 'min', text: 'TVL floor' }), tvlSel),
       el('div', { class: 'field' }, el('span', { class: 'lbl', text: 'Token status' }), el('div', { class: 'tabs' }, tab('pre-token', 'Pre-token'), tab('live', 'Live token'))),
-      el('span', { class: 'count', text: state.tab === 'pre-token' ? shown + ' of ' + DATA.board_size + ' rows' : shown + ' live-token protocols' })
+      el('span', { class: 'count', text: countText })
     );
   }
 
@@ -278,11 +295,11 @@
 
   // The live-token rows, ordered by the page's sort. A row with no market cap sorts as if it had
   // none, so it never outranks one the market actually prices.
-  function sortedLive() {
+  function sortedLive(list) {
     var key = state.sort, dir = state.dir;
     var allowed = { name: 1, tvl: 1, growth: 1, mcap: 1 };
     if (!allowed[key]) { key = 'mcap'; dir = -1; }
-    return DATA.live.slice().sort(function (a, b) {
+    return list.slice().sort(function (a, b) {
       var av, bv;
       if (key === 'name') { av = a.name.toLowerCase(); bv = b.name.toLowerCase(); }
       else if (key === 'tvl') { av = a.tvl_usd; bv = b.tvl_usd; }
@@ -295,7 +312,7 @@
   }
 
   function liveTable() {
-    var list = sortedLive();
+    var list = sortedLive(liveRows());
     if (list.length === 0) return emptyState();
     var tbody = el('tbody');
     list.forEach(function (r) {
@@ -309,8 +326,12 @@
         el('td', { class: 'num', text: fmtUsd(r.mcap_usd) })
       ));
     });
+    var filtering = state.q.trim() !== '' || state.category !== 'all' || state.chain !== 'all' || state.minTvl !== 0;
+    var scope = filtering
+      ? 'Showing ' + list.length + ' of ' + DATA.live_size + ' live-token protocols that match the filters.'
+      : 'The ' + DATA.live_size + ' shown are the largest by market cap.';
     return el('div', { class: 'panel' },
-      el('div', { class: 'caption', text: 'These protocols already have a token that trades, so their market cap is a fact, not a model. They are kept out of the pre-token ranking so the two are never mixed. The ' + DATA.live_size + ' shown are the largest by market cap.' }),
+      el('div', { class: 'caption', text: 'These protocols already have a token that trades, so their market cap is a fact, not a model. They are kept out of the pre-token ranking so the two are never mixed. ' + scope }),
       el('div', { class: 'table-wrap' }, el('table', null,
         el('thead', null, el('tr', null,
           el('th', { scope: 'col', text: 'Status' }), sortHeader('name', 'Protocol'), sortHeader('tvl', 'TVL'),

@@ -31,9 +31,12 @@ highest-TVL pre-token protocols below that floor as **early finds** — the rows
 ## What's in the dashboard
 
 - A ranked board, sortable by rank, name, TVL, 7-day growth, no-token age, implied value and sector.
-- Filters for search, category, chain and a TVL floor, plus a pre-token / live-token switch.
-- A detail view per protocol: the full value bridge from TVL to implied value, the on-record facts, and
-  a seven-step farm plan with a capital cost, a gas estimate for its chain, and a time for every step.
+- Filters for search, category, chain and a TVL floor, plus a pre-token / live-token switch (the live
+  view is sortable too, and shows the largest protocols by market cap).
+- A detail view per protocol: the full value bridge from TVL to implied value, recomputed in the page
+  so it matches `board.json`, the on-record facts, and an eight-step farm plan with a capital cost, a
+  gas estimate for its chain, and a time for every step — summarized up top as what it costs to open,
+  what it costs to keep and how long to hold.
 - A stated model panel with the formula and the sector table, so every number on the board is checkable.
 
 ## Run it
