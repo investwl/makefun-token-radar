@@ -452,6 +452,11 @@ export function boardIssue(board: BoardRow[], snapshot: Snapshot): string | null
   if (board.length < 100) return `the board has ${board.length} rows, under the 100 the gate wants`;
   if (board.length > 4000) return `the board has ${board.length} rows, over the 4,000 the gate takes`;
   const slugs = new Set(board.map((r) => r.slug));
+  const known = new Set(snapshot.protocols.map((p) => p.slug));
+  for (const r of board) {
+    if (!known.has(r.slug)) return `${r.slug} is not a protocol the snapshot lists`;
+    if (typeof r.name !== 'string' || r.name.length === 0) return `${r.slug} has no name`;
+  }
   const missing = snapshot.watchlist.filter((s) => !slugs.has(s));
   if (missing.length > 0) return `the board misses ${missing.length} watchlist slug${missing.length === 1 ? '' : 's'}: ${missing.slice(0, 5).join(', ')}`;
   const ranks = board.map((r) => r.rank).sort((a, b) => a - b);

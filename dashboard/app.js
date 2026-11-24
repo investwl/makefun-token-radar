@@ -89,7 +89,7 @@
     if (state.dir !== -1) p.set('dir', String(state.dir));
     if (state.selected) p.set('p', state.selected);
     var next = p.toString();
-    window.history.replaceState(null, '', next ? '#' + next : window.location.pathname + window.location.search);
+    try { window.history.replaceState(null, '', next ? '#' + next : window.location.pathname + window.location.search); } catch (e) { /* file:// may refuse a history rewrite; state still holds */ }
   }
 
   function passesFilters(r, q) {
@@ -249,7 +249,7 @@
       ? 'Showing ' + list.length + ' of ' + DATA.board_size + ' rows, ' + fmtUsd(list.reduce(function (s, r) { return s + r.tvl_usd; }, 0)) + ' of TVL, that match the filters.'
       : 'The watchlist floor is $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL; ' + DATA.early_size + ' rows sit below it as early finds.';
     return el('div', { class: 'panel' },
-      el('div', { class: 'caption', text: 'Pre-token protocols, strongest implied value first. ' + scope + ' The band is the 80% conformal range; token odds are the share of that sector\u2019s protocols that already carry a token. Select a row for its peer anchor and farm plan.' }),
+      el('div', { class: 'caption', text: 'Pre-token protocols, strongest implied value first. ' + scope + ' Peer \u00d7 is the sector\u2019s median mcap/TVL at this protocol\u2019s size; the band is its 80% conformal range; token odds are the share of that sector\u2019s protocols that already carry a token. Select a row for its peer anchor and farm plan.' }),
       el('div', { class: 'table-wrap' }, el('table', null,
         el('thead', null, el('tr', null,
           sortHeader('rank', 'Rank'), sortHeader('name', 'Protocol'), sortHeader('tvl', 'TVL'),
@@ -301,7 +301,7 @@
       ));
     });
     return el('div', { class: 'panel' },
-      el('div', { class: 'caption', text: 'These record no token but are wrapped, staked or bridged products of a token that already trades, exchange-branded, or versioned pools \u2014 the house watchlist rule keeps them out of the ranking, so they are shown here rather than mixed in. ' + list.length + ' of ' + DATA.excluded_size + ' shown.' }),
+      el('div', { class: 'caption', text: 'These record no token but are wrapped, staked or bridged products of a token that already trades, exchange-branded, or versioned pools \u2014 the house watchlist rule keeps them out of the ranking, so they are shown here rather than mixed in. ' + (list.length === DATA.excluded_size ? 'All ' + DATA.excluded_size + ' are shown.' : list.length + ' of ' + DATA.excluded_size + ' shown.') }),
       el('div', { class: 'table-wrap' }, el('table', null,
         el('thead', null, el('tr', null,
           el('th', { scope: 'col', text: 'Protocol' }), el('th', { scope: 'col', text: 'TVL' }), el('th', { scope: 'col', text: 'Why it is kept out' }))), tbody))
