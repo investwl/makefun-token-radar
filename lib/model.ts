@@ -75,7 +75,7 @@ export interface SectorStat {
 
 export interface RadarData {
   as_of: string; source: string; floor_usd: number; model: ModelConstants; model_version: string;
-  universe_size: number; watchlist_size: number; board_size: number; early_size: number;
+  universe_size: number; watchlist_size: number; watchlist: string[]; board_size: number; early_size: number;
   live_size: number; excluded_size: number; board_tvl_usd: number;
   backtest: Backtest; sectors: SectorStat[]; rows: RadarRow[]; live: LiveRow[]; excluded: ExcludedRow[];
 }
@@ -103,17 +103,27 @@ const PRODUCT_CATEGORIES = new Set(['CEX', 'Bridge', 'Canonical Bridge', 'Liquid
 
 export const isLive = (p: SnapshotProtocol): boolean => p.mcap_usd !== null;
 
-/** A protocol the board may rank: no token recorded, not a wrapped/staked/bridged product of one that trades. */
-export const isRankable = (p: SnapshotProtocol): boolean =>
-  p.mcap_usd === null && !PRODUCT_CATEGORIES.has(p.category ?? '') &&
-  !VERSIONED.test(p.name) && !WRAPPED.test(p.name) && !EXCHANGE_PREFIX.test(p.name);
+/** A protocol the board may rank: no token recorded, not a wrapped/staked/bridged product of one that trades.
+ *  Above the watchlist floor the house watchlist is the evidence: a protocol it leaves out there has a parent
+ *  whose token already trades (the snapshot carries no parent field), so it is kept out too. */
+export function isRankable(p: SnapshotProtocol, floorUsd: number, watchlist: Set<string>): boolean {
+  return (
+    p.mcap_usd === null &&
+    !PRODUCT_CATEGORIES.has(p.category ?? '') &&
+    !VERSIONED.test(p.name) &&
+    !WRAPPED.test(p.name) &&
+    !EXCHANGE_PREFIX.test(p.name) &&
+    !(p.tvl_usd >= floorUsd && !watchlist.has(p.slug))
+  );
+}
 
-export function exclusionReason(p: SnapshotProtocol): string | null {
+export function exclusionReason(p: SnapshotProtocol, floorUsd: number, watchlist: Set<string>): string | null {
   if (p.mcap_usd !== null) return null;
   if (PRODUCT_CATEGORIES.has(p.category ?? '')) return `${p.category} product: its underlying token already trades`;
   if (VERSIONED.test(p.name)) return 'a versioned pool of another protocol';
   if (WRAPPED.test(p.name)) return 'a wrapped or staked product of a token that trades';
   if (EXCHANGE_PREFIX.test(p.name)) return 'an exchange-branded product';
+  if (p.tvl_usd >= floorUsd && !watchlist.has(p.slug)) return 'above the floor but off the watchlist: a product of a protocol whose token trades';
   return null;
 }
 
@@ -303,9 +313,10 @@ export function calibrate(protocols: SnapshotProtocol[], asOf: string, model: Mo
 /** The universe split three ways: ranked pre-token, live token, excluded product. */
 export function universe(snapshot: Snapshot): { board: SnapshotProtocol[]; live: SnapshotProtocol[]; excluded: SnapshotProtocol[] } {
   const bySlug = new Map(snapshot.protocols.map((p) => [p.slug, p]));
+  const watch = new Set(snapshot.watchlist);
   const chosen = new Map<string, SnapshotProtocol>();
   for (const slug of snapshot.watchlist) { const p = bySlug.get(slug); if (p !== undefined) chosen.set(slug, p); }
-  for (const p of snapshot.protocols) if (isRankable(p)) chosen.set(p.slug, p);
+  for (const p of snapshot.protocols) if (isRankable(p, snapshot.floor_usd, watch)) chosen.set(p.slug, p);
   const board = [...chosen.values()].sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0));
   const boardSlugs = new Set(board.map((p) => p.slug));
   return {
@@ -356,9 +367,10 @@ export function liveRows(snapshot: Snapshot): LiveRow[] {
 
 /** The kept-out products, with the reason the house rule keeps them out of the ranking. */
 export function excludedRows(snapshot: Snapshot): ExcludedRow[] {
+  const watch = new Set(snapshot.watchlist);
   return universe(snapshot).excluded.map((p) => ({
     slug: p.slug, name: p.name, category: p.category, chains: p.chains, tvl_usd: p.tvl_usd,
-    reason: exclusionReason(p) ?? 'kept out of the ranking',
+    reason: exclusionReason(p, snapshot.floor_usd, watch) ?? 'kept out of the ranking',
   })).sort((a, b) => b.tvl_usd - a.tvl_usd);
 }
 
@@ -394,7 +406,8 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
   const radar: RadarData = {
     as_of: snapshot.as_of, source: snapshot.source, floor_usd: snapshot.floor_usd,
     model, model_version: MODEL_VERSION, universe_size: snapshot.protocols.length,
-    watchlist_size: snapshot.watchlist.length, board_size: board.length,
+    watchlist_size: snapshot.watchlist.length,
+    watchlist: snapshot.watchlist, board_size: board.length,
     early_size: board.filter((r) => !snapshot.watchlist.includes(r.slug)).length,
     live_size: live.length, excluded_size: excluded.length,
     board_tvl_usd: board.reduce((sum, r) => sum + r.tvl_usd, 0),

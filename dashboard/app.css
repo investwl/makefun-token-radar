@@ -121,6 +121,7 @@ tr[data-selected="true"] .rank, tbody tr:hover .rank { color: var(--accent); }
 .proto b { font-weight: 600; font-size: 14.5px; }
 .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .sector { font-family: var(--mono); font-size: 10.5px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); background: var(--panel); }
+.watch { font-family: var(--mono); font-size: 10.5px; padding: 2px 7px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line)); color: var(--amber); background: color-mix(in srgb, var(--amber) 8%, var(--panel)); }
 .chain { font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
 .pos { color: var(--accent); }
 .neg { color: var(--neg); }

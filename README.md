@@ -45,13 +45,13 @@ interval is the honest resolution, not a price target.
 
 ## What's in the dashboard
 
-- A ranked board of **340** pre-token protocols, sortable by rank, name, TVL, 7-day growth, no-token
+- A ranked board of **246** pre-token protocols, sortable by rank, name, TVL, 7-day growth, no-token
   age, peer multiple and implied value, with each row's 80% band and its sector's token rate.
 - The **live-token** view: all 144 protocols whose token already trades, at the market's own value —
   the calibration set, kept out of the ranking so the two are never mixed.
-- The **kept-out** view: the 274 pre-token protocols the house rule excludes as wrapped, staked or
-  bridged products, exchange-branded names, or versioned pools. All 758 snapshot protocols are
-  accounted for across the three views.
+- The **kept-out** view: the 368 pre-token protocols the house rule excludes as wrapped, staked or
+  bridged products, exchange-branded names, versioned pools, or above-floor products of a protocol
+  whose token already trades. All 758 snapshot protocols are accounted for across the three views.
 - A detail drawer per protocol: the peer anchor, the value bridge, the conformal band, the sector's
   token record, and a six-step farm plan with a capital cost, a per-chain gas estimate and a time for
   every step.

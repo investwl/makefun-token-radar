@@ -7,6 +7,7 @@
   var DATA = window.RADAR;
   if (!DATA) return;
   var M = DATA.model, B = DATA.backtest;
+  var WATCH = new Set(DATA.watchlist || []);
   var app = document.getElementById('board');
   var TVL_FLOORS = [0, 5e7, 1e8, 2.5e8, 1e9];
   var SORT_DEFAULT_DIR = { implied: -1, rank: -1, tvl: -1, growth: -1, age: -1, name: 1, mcap: -1, peer: -1 };
@@ -229,7 +230,7 @@
         el('td', { class: 'num rank', text: String(r.rank) }),
         el('td', null, el('div', { class: 'proto' },
           el('b', { text: r.name }),
-          el('div', { class: 'meta' }, el('span', { class: 'sector', text: r.sector }), el('span', { class: 'chain', text: r.category || 'Uncategorised' })),
+          el('div', { class: 'meta' }, el('span', { class: 'sector', text: r.sector }), el('span', { class: 'chain', text: r.category || 'Uncategorised' }), WATCH.has(r.slug) ? el('span', { class: 'watch', text: 'watchlist' }) : null),
           chainChips(r.chains)
         )),
         el('td', { class: 'num', text: fmtUsd(r.tvl_usd) }),
@@ -247,7 +248,7 @@
     var filtering = state.q.trim() !== '' || state.category !== 'all' || state.chain !== 'all' || state.minTvl !== 0;
     var scope = filtering
       ? 'Showing ' + list.length + ' of ' + DATA.board_size + ' rows, ' + fmtUsd(list.reduce(function (s, r) { return s + r.tvl_usd; }, 0)) + ' of TVL, that match the filters.'
-      : 'The watchlist floor is $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL; ' + DATA.early_size + ' rows sit below it as early finds.';
+      : 'The watchlist floor is $' + Math.round(DATA.floor_usd / 1e6) + 'M of TVL: above it the board ranks the house watchlist\u2019s own picks, and ' + DATA.early_size + ' early finds sit below it.';
     return el('div', { class: 'panel' },
       el('div', { class: 'caption', text: 'Pre-token protocols, strongest implied value first. ' + scope + ' Peer \u00d7 is the sector\u2019s median mcap/TVL at this protocol\u2019s size; the band is its 80% conformal range; token odds are the share of that sector\u2019s protocols that already carry a token. Select a row for its peer anchor and farm plan.' }),
       el('div', { class: 'table-wrap' }, el('table', null,
@@ -388,7 +389,7 @@
     state.selected = slug;
     writeHash();
     dialog.textContent = '';
-    var chains = row.chains && row.chains.length ? row.chains.join(', ') : 'an unnamed chain';
+    var chains = row.chains && row.chains.length ? row.chains.slice(0, 4).join(', ') + (row.chains.length > 4 ? ' +' + (row.chains.length - 4) : '') : 'an unnamed chain';
     dialog.appendChild(el('div', { class: 'detail-head' },
       el('div', null,
         el('span', { class: 'eyebrow', text: 'Rank ' + row.rank + ' of ' + DATA.board_size }),
@@ -396,6 +397,7 @@
         el('p', { class: 'sub', text: row.sector + ' \u00b7 ' + (row.category || 'Uncategorised') + ' \u00b7 ' + chains }),
         el('p', { class: 'detail-meta', text: 'First listed ' + (row.listed_at || 'unknown') + ' \u00b7 ' + (row.chains || []).length + ' chain' + ((row.chains || []).length === 1 ? '' : 's') + ' \u00b7 ' + row.peer_n + ' tokened peers (' + row.anchor_level + ' anchor)' }),
         el('div', { class: 'chips' },
+          WATCH.has(row.slug) ? chip('watchlist', 'yes') : null,
           chip('peer \u00d7', fmtMult(row.peer_multiple)),
           chip('token odds', row.token_count + ' of ' + row.token_total + ' \u00b7 ' + fmtRate(row.token_rate)),
           chip('80% band', fmtMult(row.band_low_usd / row.implied_value_usd) + ' \u2013 ' + fmtMult(row.band_high_usd / row.implied_value_usd))
@@ -413,7 +415,7 @@
     var bridge = el('div', { class: 'bridge' },
       bridgeRow('TVL', fmtUsd(row.tvl_usd)),
       bridgeRow('\u00d7 peer multiple at this size', fmtMult(row.peer_multiple)),
-      el('div', { class: 'why', text: row.peer_n + ' ' + (row.category || 'uncategorised') + ' peers \u00b7 ' + row.anchor_level + ' anchor \u00b7 calibrated on the snapshot\u2019s priced protocols' }),
+      el('div', { class: 'why', text: row.peer_n + ' ' + (row.anchor_level === 'category' ? (row.category || 'category') : row.anchor_level === 'group' ? row.sector + ' group' : 'all') + ' peers \u00b7 ' + row.anchor_level + ' anchor \u00b7 calibrated on the snapshot\u2019s priced protocols' }),
       bridgeRow('\u00d7 growth (' + fmtPct(row.change_7d) + ')', '\u00d7' + row.growth_mult.toFixed(3)),
       bridgeRow('\u00d7 no-token age (' + fmtAge(row.age_days) + ')', '\u00d7' + row.age_mult.toFixed(3)),
       bridgeRow('= implied value', fmtUsd(row.implied_value_usd), 'total'),
