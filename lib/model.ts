@@ -375,7 +375,7 @@ export function excludedRows(snapshot: Snapshot): ExcludedRow[] {
 }
 
 /** The sector table: peers, the peer multiple at $100M, and the sector's own token record. */
-export function sectorStats(snapshot: Snapshot, board: BoardRow[], cal: Calibration): SectorStat[] {
+export function sectorStats(snapshot: Snapshot, board: BoardRow[], cal: Calibration, model: ModelConstants = MODEL): SectorStat[] {
   const peers = snapshot.protocols.filter(isPeer);
   const rows = new Map<string, number>();
   for (const r of board) rows.set(r.category ?? '', (rows.get(r.category ?? '') ?? 0) + 1);
@@ -386,7 +386,7 @@ export function sectorStats(snapshot: Snapshot, board: BoardRow[], cal: Calibrat
     totals.set(p.category ?? '', c);
   }
   return [...rows.entries()].map(([category, count]) => {
-    const anchor = anchorFor(category, peers, cal.beta, MODEL);
+    const anchor = anchorFor(category, peers, cal.beta, model);
     const t = totals.get(category) ?? { tokened: 0, total: 0 };
     const [lo, hi] = cal.bands.byGroup.get(peerGroup(category)) ?? cal.bands.global;
     return {
@@ -411,7 +411,7 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
     early_size: board.filter((r) => !snapshot.watchlist.includes(r.slug)).length,
     live_size: live.length, excluded_size: excluded.length,
     board_tvl_usd: board.reduce((sum, r) => sum + r.tvl_usd, 0),
-    backtest: cal.backtest, sectors: sectorStats(snapshot, board, cal),
+    backtest: cal.backtest, sectors: sectorStats(snapshot, board, cal, model),
     rows: board.map(radarRow), live, excluded,
   };
   return { board, radar };
